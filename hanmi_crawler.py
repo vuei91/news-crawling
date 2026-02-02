@@ -304,7 +304,7 @@ class HanmiCrawler:
         
         return None
     
-    async def run(self, max_articles=10, use_list_page=True):
+    async def run(self, max_articles=10, use_list_page=True, email_config=None):
         """크롤러 실행"""
         # PyInstaller 환경에서 브라우저 경로 설정
         self._get_browser_path()
@@ -352,9 +352,12 @@ class HanmiCrawler:
                         self.articles.append(article)
                     await asyncio.sleep(1)  # 서버 부하 방지
                 
-                # 결과 저장
+                # 결과 저장 또는 이메일 전송
                 if self.articles:
-                    self.save_results()
+                    if email_config:
+                        self.send_email(email_config)
+                    else:
+                        self.save_results()
                 
             finally:
                 await browser.close()
@@ -425,6 +428,32 @@ class HanmiCrawler:
                     content_length = len(str(content_cell.value))
                     estimated_lines = max(3, content_length // 120)
                     worksheet.row_dimensions[cell.row].height = min(estimated_lines * 15, 400)
+    
+    def send_email(self, email_config):
+        """이메일로 기사 전송"""
+        from email_sender import EmailSender
+        
+        try:
+            sender = EmailSender(
+                smtp_server=email_config['smtp_server'],
+                smtp_port=email_config['smtp_port'],
+                sender_email=email_config['sender_email'],
+                sender_password=email_config['sender_password']
+            )
+            
+            success = sender.send_articles_email(
+                articles=self.articles,
+                recipient_email=email_config['recipient_email'],
+                target_date=self.target_date
+            )
+            
+            if success:
+                print(f"\n✓ 총 {len(self.articles)}개 기사를 이메일로 전송했습니다.")
+            else:
+                print("\n✗ 이메일 전송에 실패했습니다.")
+                
+        except Exception as e:
+            print(f"\n✗ 이메일 전송 중 오류: {e}")
 
 
 async def main():
